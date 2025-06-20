@@ -1,0 +1,91 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: update hostname
+  ansible.builtin.hostname:
+    name: "{{ ansible_host }}"
+
+- name: provision user(s)
+  ansible.builtin.user:
+    name: admin
+    group: sudo
+    shell: /bin/bash
+
+- name: install aptitude
+  ansible.builtin.apt:
+    pkg: aptitude
+    state: present
+    update_cache: yes
+
+- name: upgrade packages
+  ansible.builtin.apt:
+    upgrade: safe
+
+- name: autoremove unncessary packages
+  ansible.builtin.apt:
+    autoremove: yes
+
+- name: attain reboot status
+  ansible.builtin.stat:
+    path: /var/run/reboot-required
+  register: reboot_flag
+
+- name: reboot (if required)
+  ansible.builtin.reboot:
+  when: reboot_flag.stat.exists
+
+- name: install default security packages
+  ansible.builtin.apt:
+    name: "{{ packages }}"
+  vars:
+    packages:
+      - ufw
+      - fail2ban
+
+- name: start default security services
+  ansible.builtin.systemd_service:
+    name: "{{ item }}"
+    state: started
+  with_items:
+    - fail2ban
+    - ufw
+
+- name: configure default firewall policy
+  community.general.ufw:
+    state: enabled
+    policy: reject
+
+- name: configure default firewall port(s)
+  community.general.ufw:
+    rule: allow
+    port: 22
+    proto: tcp
+
+- name: configure default authorized keys
+  ansible.posix.authorized_key:
+    user: admin
+    state: present
+    key: "{{ lookup('file', '~/.ssh/admin/id_ed25519.pub') }}"
+
+- name: remove root authorized keys file
+  ansible.builtin.file:
+    path: /home/root/.ssh/authorized_keys
+    state: absent
+
+- name: update sudoer(s)
+  ansible.builtin.lineinfile:
+    path: "/etc/sudoers"
+    regexp: '^%sudo.*ALL=\(ALL:ALL\).*'
+    line: "%sudo   ALL=(ALL:ALL) NOPASSWD: ALL"
+    validate: "/usr/sbin/visudo -cf %s"
+
+- name: override sshd config
+  ansible.builtin.copy:
+    src: etc/ssh/sshd_config
+    dest: /etc/ssh/sshd_config
+    mode: '0644'
+
+- name: restart sshd
+  ansible.builtin.systemd_service:
+    name: sshd
+    state: restarted
+    daemon_reload: yes
