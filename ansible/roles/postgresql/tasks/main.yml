@@ -1,0 +1,40 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: install database package(s)
+  ansible.builtin.apt:
+    name: postgresql
+
+- name: create database user(s) on node
+  ansible.builtin.user:
+    name: dba
+    group: sudo
+    shell: /bin/bash
+
+- name: install supporting automation package(s)
+  ansible.builtin.pip:
+    name: psycopg2-binary
+    virtualenv: "{{ postgresql_python_virtual_environment }}"
+    virtualenv_command: "{{ ansible_python_interpreter }} -m venv"
+
+- block:
+
+  - name: create database user(s)
+    become_user: postgres
+    become: yes
+    community.postgresql.postgresql_user:
+      name: dba
+      password: "{{ postgresql_dba_password | mandatory }}"
+      role_attr_flags: SUPERUSER,CREATEROLE,CREATEDB,REPLICATION,BYPASSRLS
+
+  - name: reconfigure existing database superuser(s)
+    become_user: dba
+    become: yes
+    community.postgresql.postgresql_user:
+      login_user: dba
+      login_password: "{{ postgresql_dba_password | mandatory }}"
+      login_db: postgres
+      name: postgres
+      role_attr_flags: NOCREATEROLE,NOCREATEDB,NOREPLICATION,NOBYPASSRLS
+
+  vars:
+    ansible_python_interpreter: "{{ postgresql_python_virtual_environment }}/bin/python"

@@ -33,13 +33,15 @@
   ansible.builtin.reboot:
   when: reboot_flag.stat.exists
 
-- name: install default security packages
+- name: install default required packages
   ansible.builtin.apt:
     name: "{{ packages }}"
   vars:
     packages:
       - ufw
       - fail2ban
+      - acl
+      - python3-venv
 
 - name: start default security services
   ansible.builtin.systemd_service:
