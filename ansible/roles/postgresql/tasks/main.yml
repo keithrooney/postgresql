@@ -2,7 +2,27 @@
 ---
 - name: install database package(s)
   ansible.builtin.apt:
+    name: "postgresql-{{ postgresql_version }}"
+
+- name: modify postgresql configuration
+  ansible.builtin.copy:
+    src: etc/postgresql/postgresql.conf
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/postgresql.conf"
+    mode: "0644"
+  register: pg_config
+
+- name: modify postgresql host-based authentication
+  ansible.builtin.copy:
+    src: etc/postgresql/pg_hba.conf
+    dest: "/etc/postgresql/{{ postgresql_version }}/main/pg_hba.conf"
+    mode: "0644"
+  register: pg_hba_config
+
+- name: restart database (only if configuration(s) were changed)
+  ansible.builtin.systemd_service:
     name: postgresql
+    state: restarted
+  when: pg_config.changed or pg_hba_config.changed
 
 - name: create database user(s) on node
   ansible.builtin.user:

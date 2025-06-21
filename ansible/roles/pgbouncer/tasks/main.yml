@@ -1,0 +1,31 @@
+#SPDX-License-Identifier: MIT-0
+---
+- name: install required package(s)
+  ansible.builtin.apt:
+    name: pgbouncer
+
+- name: modify application configuration
+  ansible.builtin.copy:
+    src: etc/pgbouncer/pgbouncer.ini
+    dest: /etc/pgbouncer/pgbouncer.ini
+    mode: "0644"
+  register: app_config
+
+- name: modify authentication configuration
+  ansible.builtin.template:
+    src: etc/pgbouncer/userlist.txt
+    dest: /etc/pgbouncer/userlist.txt
+    mode: "0644"
+  register: auth_config
+
+- name: restart application (only if configuration(s) were changed)
+  ansible.builtin.systemd_service:
+    name: pgbouncer
+    state: restarted
+  when: app_config.changed or auth_config.changed
+
+- name: configure firewall port(s)
+  community.general.ufw:
+    rule: allow
+    port: 6432
+    proto: tcp
